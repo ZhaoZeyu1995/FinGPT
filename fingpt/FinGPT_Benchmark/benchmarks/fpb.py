@@ -6,6 +6,7 @@ from datasets import load_dataset, load_from_disk, Dataset
 from tqdm import tqdm
 import datasets
 import torch
+from math import ceil
 
 from torch.utils.data import DataLoader
 from functools import partial
@@ -73,17 +74,21 @@ def test_fpb(args, model, tokenizer, prompt_fun=None):
 
     context = instructions['context'].tolist()
     
-    total_steps = instructions.shape[0]//batch_size + 1
+    total_steps = ceil(instructions.shape[0]//batch_size)
     print(f"Total len: {len(context)}. Batchsize: {batch_size}. Total steps: {total_steps}")
 
 
     out_text_list = []
     for i in tqdm(range(total_steps)):
-        tmp_context = context[i* batch_size:(i+1)* batch_size]
-        tokens = tokenizer(tmp_context, return_tensors='pt', padding=True, max_length=512, return_token_type_ids=False)
+        tmp_context = context[i* batch_size:min((i+1)* batch_size, len(context))]
+        try:
+            tokens = tokenizer(tmp_context, return_tensors='pt', padding=True, return_token_type_ids=False)
+        except:
+            print(tmp_context)
+            exit()
         for k in tokens.keys():
             tokens[k] = tokens[k].cuda()
-        res = model.generate(**tokens, max_length=512, eos_token_id=tokenizer.eos_token_id)
+        res = model.generate(**tokens, max_new_tokens=128, eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
         # print(f'{i}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1] for o in res_sentences]
@@ -99,7 +104,7 @@ def test_fpb(args, model, tokenizer, prompt_fun=None):
     f1_micro = f1_score(instructions["new_target"], instructions["new_out"], average = "micro")
     f1_weighted = f1_score(instructions["new_target"], instructions["new_out"], average = "weighted")
 
-    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted (BloombergGPT): {f1_weighted}. ")
+    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted: {f1_weighted}. ")
 
     return instructions
 

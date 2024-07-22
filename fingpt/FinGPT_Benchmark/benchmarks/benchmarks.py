@@ -46,7 +46,8 @@ def main(args):
         tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids('<|extra_0|>')
     if not tokenizer.pad_token or tokenizer.pad_token_id == tokenizer.eos_token_id:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        model.resize_token_embeddings(len(tokenizer))
+        if args.base_model != "phi3medium":
+            model.resize_token_embeddings(len(tokenizer))
 
     print(f'pad: {tokenizer.pad_token_id}, eos: {tokenizer.eos_token_id}')
 
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--base_model", required=True, type=str, choices=[
-                        'chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom'])
+                        'chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom', 'phi3mini', 'phi3small', 'phi3medium'])
     parser.add_argument("--peft_model", required=False, type=str, default=None)
     parser.add_argument("--max_length", default=512, type=int)
     parser.add_argument("--batch_size", default=4, type=int,

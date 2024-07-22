@@ -7,6 +7,7 @@ from tqdm import tqdm
 import datasets
 import torch
 from pathlib import Path
+from math import ceil
 
 dic = {
     0:"negative",
@@ -51,18 +52,18 @@ def test_tfns(args, model, tokenizer, prompt_fun=None):
 
     context = dataset['context'].tolist()
     
-    total_steps = dataset.shape[0]//batch_size + 1
+    total_steps = ceil(dataset.shape[0]//batch_size)
     print(f"Total len: {len(context)}. Batchsize: {batch_size}. Total steps: {total_steps}")
 
 
     out_text_list = []
     for i in tqdm(range(total_steps)):
-        tmp_context = context[i* batch_size:(i+1)* batch_size]
+        tmp_context = context[i* batch_size:min((i+1)* batch_size, len(context))]
         tokens = tokenizer(tmp_context, return_tensors='pt', padding=True, max_length=512, return_token_type_ids=False)
         # tokens.pop('token_type_ids')
         for k in tokens.keys():
             tokens[k] = tokens[k].cuda()
-        res = model.generate(**tokens, max_length=512, eos_token_id=tokenizer.eos_token_id)
+        res = model.generate(**tokens, max_new_tokens=128, eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
         out_text = [o.split("Answer: ")[1] for o in res_sentences]
         out_text_list += out_text
@@ -77,6 +78,6 @@ def test_tfns(args, model, tokenizer, prompt_fun=None):
     f1_micro = f1_score(dataset["new_target"], dataset["new_out"], average = "micro")
     f1_weighted = f1_score(dataset["new_target"], dataset["new_out"], average = "weighted")
 
-    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted (BloombergGPT): {f1_weighted}. ")
+    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted: {f1_weighted}. ")
 
     return dataset

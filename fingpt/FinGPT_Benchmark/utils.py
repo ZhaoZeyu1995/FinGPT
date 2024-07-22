@@ -21,6 +21,65 @@ lora_module_dict = {
 }
 
 
+def get_prompt_backup(template, instruction, input_text):
+    """
+    Generates a prompt based on a predefined template, instruction, and input.
+
+    Args:
+    template (str): The key to select the prompt template from the predefined dictionary.
+    instruction (str): The instruction text to be included in the prompt.
+    input_text (str): The input text to be included in the prompt.
+
+    Returns:
+    str: The generated prompt.
+
+    Raises:
+    KeyError: If the provided template key is not found in the template dictionary.
+    """
+    if not instruction:
+        return input_text
+
+    if template not in template_dict:
+        raise KeyError(
+            f"Template '{template}' not found. Available templates: {', '.join(template_dict.keys())}")
+
+    return template_dict[template].format(instruction=instruction, input=input_text)
+
+
+def apply_chat_template(sample, tokenizer):
+    if "instruction" not in sample:
+        messages = [
+            {
+                "role": "user",
+                "content": sample['input'] + '\n' + "Answer: "
+            },
+        ]
+
+    if tokenizer.chat_template is None or "system" not in tokenizer.chat_template:
+        messages = [
+            {
+                "role": "user",
+                "content": "Instruction: " + sample['instruction'] + '\n' + "Input: " + sample['input'] + '\n' + "Answer: "
+            },
+        ]
+    else:
+        messages = [
+            {
+                "role": "system",
+                "content": "Instruction: " + sample['instruction']
+            },
+            {
+                "role": "user",
+                "content": "Input: " + sample['input'] + '\n' + "Answer: "
+            },
+        ]
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True)
+    return {
+        "prompt": prompt,
+    }
+
+
 def get_prompt(template, instruction, input_text):
     """
     Generates a prompt based on a predefined template, instruction, and input.
@@ -40,9 +99,12 @@ def get_prompt(template, instruction, input_text):
         return input_text
 
     if template not in template_dict:
-        raise KeyError(f"Template '{template}' not found. Available templates: {', '.join(template_dict.keys())}")
+        raise KeyError(
+            f"Template '{template}' not found. Available templates: {', '.join(template_dict.keys())}")
 
-    return template_dict[template].format(instruction=instruction, input=input_text)
+    prompt = 'Instruction: {instruction}\nInput: {input}\nAnswer: '.format(
+        instruction=instruction, input=input_text)
+    return prompt
 
 
 def test_mapping(args, feature):
@@ -61,7 +123,8 @@ def test_mapping(args, feature):
     """
     # Ensure 'instruction' and 'input' are present in the feature dictionary.
     if 'instruction' not in feature or 'input' not in feature:
-        raise ValueError("Both 'instruction' and 'input' need to be provided in the feature dictionary.")
+        raise ValueError(
+            "Both 'instruction' and 'input' need to be provided in the feature dictionary.")
 
     # Construct the prompt using the provided instruction and input.
     prompt = get_prompt(
@@ -73,6 +136,7 @@ def test_mapping(args, feature):
     return {
         "prompt": prompt,
     }
+
 
 def tokenize(args, tokenizer, feature):
     """
@@ -122,8 +186,9 @@ def tokenize(args, tokenizer, feature):
 
     # Create label IDs for training.
     # The labels should start from where the prompt ends, and be padded for the prompt portion.
-    label_ids = [tokenizer.pad_token_id] * len(prompt_ids) + input_ids[len(prompt_ids):]
-    
+    label_ids = [tokenizer.pad_token_id] * \
+        len(prompt_ids) + input_ids[len(prompt_ids):]
+
     return {
         "input_ids": input_ids,
         "labels": label_ids,
@@ -153,14 +218,18 @@ def parse_model_name(name, from_remote=False):
         'qwen': ('Qwen/Qwen-7B', 'base_models/Qwen-7B'),
         'baichuan': ('baichuan-inc/Baichuan2-7B-Base', 'base_models/Baichuan2-7B-Base'),
         'mpt': ('cekal/mpt-7b-peft-compatible', 'base_models/mpt-7b-peft-compatible'),
-        'bloom': ('bigscience/bloom-7b1', 'base_models/bloom-7b1')
+        'bloom': ('bigscience/bloom-7b1', 'base_models/bloom-7b1'),
+        'phi3mini': ('microsoft/Phi-3-mini-4k-instruct', 'base_models/Phi-3-mini-4k-instruct'),
+        'phi3small': ('microsoft/Phi-3-small-8k-instruct', 'base_models/Phi-3-small-8k-instruct'),
+        'phi3medium': ('microsoft/Phi-3-medium-4k-instruct', 'base_models/Phi-3-medium-4k-instruct'),
     }
 
     if name in model_paths:
         return model_paths[name][0] if from_remote else model_paths[name][1]
     else:
         valid_model_names = ', '.join(model_paths.keys())
-        raise ValueError(f"Undefined base model '{name}'. Valid model names are: {valid_model_names}")
+        raise ValueError(
+            f"Undefined base model '{name}'. Valid model names are: {valid_model_names}")
 
 
 def load_dataset(names, from_remote=False):
@@ -188,12 +257,15 @@ def load_dataset(names, from_remote=False):
             dataset_name, replication_factor = name.split('*')
             replication_factor = int(replication_factor)
             if replication_factor < 1:
-                raise ValueError("Replication factor must be a positive integer.")
+                raise ValueError(
+                    "Replication factor must be a positive integer.")
 
         # Construct the correct dataset path or name based on the source location
-        dataset_path_or_name = ('FinGPT/fingpt-' if from_remote else 'data/fingpt-') + dataset_name
+        dataset_path_or_name = (
+            'FinGPT/fingpt-' if from_remote else 'data/fingpt-') + dataset_name
         if not os.path.exists(dataset_path_or_name) and not from_remote:
-            raise FileNotFoundError(f"The dataset path {dataset_path_or_name} does not exist.")
+            raise FileNotFoundError(
+                f"The dataset path {dataset_path_or_name} does not exist.")
 
         # Load the dataset
         try:
@@ -206,9 +278,11 @@ def load_dataset(names, from_remote=False):
         if 'test' not in tmp_dataset:
             if 'train' in tmp_dataset:
                 tmp_dataset = tmp_dataset['train']
-                tmp_dataset = tmp_dataset.train_test_split(test_size=0.2, shuffle=True, seed=42)
+                tmp_dataset = tmp_dataset.train_test_split(
+                    test_size=0.2, shuffle=True, seed=42)
             else:
-                raise ValueError("The dataset must contain a 'train' or 'test' split.")
+                raise ValueError(
+                    "The dataset must contain a 'train' or 'test' split.")
 
         # Append the possibly replicated dataset to the list
         dataset_list.extend([tmp_dataset] * replication_factor)

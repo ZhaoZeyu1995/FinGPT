@@ -8,7 +8,7 @@ from functools import partial
 import re
 import sys
 import numpy as np
-from fingpt.FinGPT_Benchmark.utils import *
+from fingpt.FinGPT_Benchmark.utils import test_mapping
 from pathlib import Path
 sys.path.append('../')
     

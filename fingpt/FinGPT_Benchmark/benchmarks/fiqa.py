@@ -105,7 +105,7 @@ def test_fiqa(args, model, tokenizer, prompt_fun=add_instructions):
     f1_micro = f1_score(dataset["new_target"], dataset["new_out"], average = "micro")
     f1_weighted = f1_score(dataset["new_target"], dataset["new_out"], average = "weighted")
 
-    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted (BloombergGPT): {f1_weighted}. ")
+    print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted: {f1_weighted}. ")
 
     return dataset
 

@@ -59,7 +59,7 @@ def test_ner(args, model, tokenizer):
     def collate_fn(batch):
         inputs = tokenizer(
             [f["prompt"] for f in batch], return_tensors='pt',
-            padding=True, max_length=args.max_length,
+            padding=True,
             return_token_type_ids=False
         )
         return inputs
@@ -71,7 +71,7 @@ def test_ner(args, model, tokenizer):
 
     for idx, inputs in enumerate(tqdm(dataloader)):
         inputs = {key: value.to(model.device) for key, value in inputs.items()}
-        res = model.generate(**inputs, max_length=args.max_length, eos_token_id=tokenizer.eos_token_id)
+        res = model.generate(**inputs, max_new_tokens=128, eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
         if (idx + 1) % log_interval == 0:
             tqdm.write(f'{idx}: {res_sentences[0]}')
