@@ -35,12 +35,14 @@ def test_headline(args, model, tokenizer):
 
     # dataset = load_from_disk('../data/fingpt-headline')['test']
     dataset = load_from_disk(
-        Path(__file__).parent.parent / 'data/fingpt-headline-instruct')['test']
+        str(Path(__file__).parent.parent / 'data/fingpt-headline-instruct'))['test']
 
     if args.base_model in ["phi3mini", "phi3small", "phi3medium"]:
-        dataset = dataset.map(lambda x: apply_chat_template(x, tokenizer), load_from_cache_file=False)
+        dataset = dataset.map(lambda x: apply_chat_template(
+            x, tokenizer), load_from_cache_file=False)
     else:
-         dataset = dataset.map(partial(test_mapping, args), load_from_cache_file=False)
+        dataset = dataset.map(partial(test_mapping, args),
+                              load_from_cache_file=False)
 
     def collate_fn(batch):
         inputs = tokenizer(

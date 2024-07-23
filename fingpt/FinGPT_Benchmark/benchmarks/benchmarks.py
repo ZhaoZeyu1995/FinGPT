@@ -45,8 +45,8 @@ def main(args):
             '<|endoftext|>')
         tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids('<|extra_0|>')
     if not tokenizer.pad_token or tokenizer.pad_token_id == tokenizer.eos_token_id:
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        if args.base_model != "phi3medium":
+        if args.base_model not in ["phi3medium", "phi3small", "phi3mini"] :
+            tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             model.resize_token_embeddings(len(tokenizer))
 
     print(f'pad: {tokenizer.pad_token_id}, eos: {tokenizer.eos_token_id}')
