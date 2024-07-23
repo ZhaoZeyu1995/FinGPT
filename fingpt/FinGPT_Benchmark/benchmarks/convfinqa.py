@@ -48,7 +48,7 @@ def test_convfinqa(args, model, tokenizer):
     def collate_fn(batch):
         inputs = tokenizer(
             [f["prompt"] for f in batch], return_tensors='pt',
-            padding=True, max_length=args.max_length,
+            padding=True,
             return_token_type_ids=False
         )
         return inputs
