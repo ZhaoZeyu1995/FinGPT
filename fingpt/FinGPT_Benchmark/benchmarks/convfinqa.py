@@ -64,9 +64,10 @@ def test_convfinqa(args, model, tokenizer):
                              eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
-        tqdm.write(f'{idx}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1]
+        out_text = [o.split("Answer: ")[1].split('\n')[0].strip().split(' ')[0]
                     if "Answer: " in o else "" for o in res_sentences]
+        tqdm.write(f'{idx}: {res_sentences[0]}')
+        tqdm.write(f'{idx}: Answer: {out_text[0]}')
         out_text_list += out_text
         torch.cuda.empty_cache()
 
