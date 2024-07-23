@@ -8,7 +8,7 @@ from functools import partial
 import re
 import sys
 import numpy as np
-from fingpt.FinGPT_Benchmark.utils import test_mapping
+from fingpt.FinGPT_Benchmark.utils import test_mapping, apply_chat_template
 from pathlib import Path
 sys.path.append('../')
 
@@ -36,9 +36,14 @@ def map_output(feature):
 def test_convfinqa(args, model, tokenizer):
 
     dataset = load_from_disk(
-        Path(__file__).parent.parent / 'data/fingpt-convfinqa')['test']
-    dataset = dataset.map(partial(test_mapping, args),
-                          load_from_cache_file=False)
+        str(Path(__file__).parent.parent / 'data/fingpt-convfinqa'))['test']
+
+    if args.base_model in ["phi3mini", "phi3small", "phi3medium"]:
+        dataset = dataset.map(lambda x: apply_chat_template(
+            x, tokenizer), load_from_cache_file=False)
+    else:
+        dataset = dataset.map(partial(test_mapping, args),
+                              load_from_cache_file=False)
 
     def collate_fn(batch):
         inputs = tokenizer(
@@ -52,7 +57,6 @@ def test_convfinqa(args, model, tokenizer):
         dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
 
     out_text_list = []
-    log_interval = len(dataloader) // 5
 
     for idx, inputs in enumerate(tqdm(dataloader)):
         inputs = {key: value.to(model.device) for key, value in inputs.items()}
@@ -60,8 +64,7 @@ def test_convfinqa(args, model, tokenizer):
                              eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
-        if (idx + 1) % log_interval == 0:
-            tqdm.write(f'{idx}: {res_sentences[0]}')
+        tqdm.write(f'{idx}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1]
                     if "Answer: " in o else "" for o in res_sentences]
         out_text_list += out_text
