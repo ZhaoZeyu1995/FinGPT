@@ -26,7 +26,12 @@ from peft import (
     prepare_model_for_int8_training,
     set_peft_model_state_dict
 )
-from utils import *
+from fingpt.FinGPT_Benchmark.utils import (
+    load_dataset,
+    parse_model_name,
+    tokenize,
+    lora_module_dict
+)
 
 
 # Replace with your own api_key and project name
@@ -43,7 +48,7 @@ def main(args):
 
     # Parse the model name and determine if it should be fetched from a remote source
     model_name = parse_model_name(args.base_model, args.from_remote)
-    
+
     # Load the pre-trained causal language model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -56,28 +61,30 @@ def main(args):
         print(model)
 
     # Load tokenizer associated with the pre-trained model
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name, trust_remote_code=True)
 
     # Apply model specific tokenization settings
     if args.base_model != 'mpt':
         tokenizer.padding_side = "left"
     if args.base_model == 'qwen':
-        tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids('<|endoftext|>')
+        tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(
+            '<|endoftext|>')
         tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids('<|extra_0|>')
     # Ensure padding token is set correctly
     if not tokenizer.pad_token or tokenizer.pad_token_id == tokenizer.eos_token_id:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         model.resize_token_embeddings(len(tokenizer))
-    
     # Load training and testing datasets
-    dataset_list = load_dataset(args.dataset, args.from_remote)
-    dataset_train = datasets.concatenate_datasets([d['train'] for d in dataset_list]).shuffle(seed=42)
-    
+    dataset_list = load_dataset(args.dataset, False)
+    dataset_train = datasets.concatenate_datasets(
+        [d['train'] for d in dataset_list]).shuffle(seed=42)
     if args.test_dataset:
-        dataset_list = load_dataset(args.test_dataset, args.from_remote)
-    dataset_test = datasets.concatenate_datasets([d['test'] for d in dataset_list])
-    
-    dataset = datasets.DatasetDict({'train': dataset_train, 'test': dataset_test})
+        dataset_list = load_dataset(args.test_dataset, False)
+    dataset_test = datasets.concatenate_datasets(
+        [d['test'] for d in dataset_list])
+    dataset = datasets.DatasetDict(
+        {'train': dataset_train, 'test': dataset_test})
     # Display first sample from the training dataset
     print(dataset['train'][0])
     # Filter out samples that exceed the maximum token length and remove unused columns
@@ -85,8 +92,9 @@ def main(args):
     print('original dataset length: ', len(dataset['train']))
     dataset = dataset.filter(lambda x: not x['exceed_max_length'])
     print('filtered dataset length: ', len(dataset['train']))
-    dataset = dataset.remove_columns(['instruction', 'input', 'output', 'exceed_max_length'])
-    
+    dataset = dataset.remove_columns(
+        ['instruction', 'input', 'output', 'exceed_max_length'])
+
     print(dataset['train'][0])
 
     # Create a timestamp for model saving
@@ -95,7 +103,8 @@ def main(args):
 
     # Set up training arguments
     training_args = TrainingArguments(
-        output_dir=f'finetuned_models/{args.run_name}_{formatted_time}', # 保存位置
+        # The output directory
+        output_dir=f'finetuned_models/{args.run_name}_{formatted_time}',
         logging_steps=args.log_interval,
         num_train_epochs=args.num_epochs,
         per_device_train_batch_size=args.batch_size,
@@ -109,7 +118,7 @@ def main(args):
         eval_steps=args.eval_steps,
         fp16=True,
         # fp16_full_eval=True,
-        deepspeed=args.ds_config,
+        # deepspeed=args.ds_config,
         evaluation_strategy=args.evaluation_strategy,
         load_best_model_at_end=args.load_best_model,
         remove_unused_columns=False,
@@ -137,23 +146,22 @@ def main(args):
         bias='none',
     )
     model = get_peft_model(model, peft_config)
-    
+
     # Initialize TensorBoard for logging
     writer = SummaryWriter()
 
     # Initialize the trainer
     trainer = Trainer(
-        model=model, 
-        args=training_args, 
+        model=model,
+        args=training_args,
         train_dataset=dataset["train"],
-        eval_dataset=dataset["test"], 
+        eval_dataset=dataset["test"],
         data_collator=DataCollatorForSeq2Seq(
             tokenizer, padding=True,
             return_tensors="pt"
         ),
         callbacks=[TensorBoardCallback(writer)],
     )
-    
     # if torch.__version__ >= "2" and sys.platform != "win32":
     #     model = torch.compile(model)
 
@@ -173,22 +181,28 @@ if __name__ == "__main__":
     parser.add_argument("--run_name", default='local-test', type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--test_dataset", type=str)
-    parser.add_argument("--base_model", required=True, type=str, choices=['chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom'])
+    parser.add_argument("--base_model", required=True, type=str, choices=[
+                        'chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom', 'phi3mini', 'phi3small', 'phi3medium'])
     parser.add_argument("--max_length", default=512, type=int)
-    parser.add_argument("--batch_size", default=4, type=int, help="The train batch size per device")
-    parser.add_argument("--learning_rate", default=1e-4, type=float, help="The learning rate")
-    parser.add_argument("--num_epochs", default=8, type=float, help="The training epochs")
-    parser.add_argument("--gradient_steps", default=8, type=float, help="The gradient accumulation steps")
-    parser.add_argument("--num_workers", default=8, type=int, help="dataloader workers")
+    parser.add_argument("--batch_size", default=4, type=int,
+                        help="The train batch size per device")
+    parser.add_argument("--learning_rate", default=1e-4,
+                        type=float, help="The learning rate")
+    parser.add_argument("--num_epochs", default=8,
+                        type=float, help="The training epochs")
+    parser.add_argument("--gradient_steps", default=8,
+                        type=float, help="The gradient accumulation steps")
+    parser.add_argument("--num_workers", default=8,
+                        type=int, help="dataloader workers")
     parser.add_argument("--log_interval", default=20, type=int)
     parser.add_argument("--warmup_ratio", default=0.05, type=float)
-    parser.add_argument("--ds_config", default='./config_new.json', type=str)
+    # parser.add_argument("--ds_config", default='./config_new.json', type=str)
     parser.add_argument("--scheduler", default='linear', type=str)
     parser.add_argument("--instruct_template", default='default')
     parser.add_argument("--evaluation_strategy", default='steps', type=str)
     parser.add_argument("--load_best_model", default='False', type=bool)
-    parser.add_argument("--eval_steps", default=0.1, type=float)    
-    parser.add_argument("--from_remote", default=False, type=bool)    
+    parser.add_argument("--eval_steps", default=0.1, type=float)
+    parser.add_argument("--from_remote", default=True, type=bool)
     args = parser.parse_args()
 
     # Login to Weights and Biases

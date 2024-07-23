@@ -111,15 +111,10 @@ def test_re(args, model, tokenizer):
         Path(__file__).parent.parent / 'data/fingpt-finred-re')['test']
     dataset = dataset.train_test_split(0.01, seed=42)['test']
 
-    # dataset = dataset.map(partial(test_mapping, args),
-                          # load_from_cache_file=False)
-
-    if args.peft_model:
-        if "FinGPT" in args.peft_model:
-            dataset = dataset.map(partial(test_mapping, args),
-                                  load_from_cache_file=False)
-    else:
+    if args.base_model in ["phi3mini", "phi3small", "phi3medium"]:
         dataset = dataset.map(lambda x: apply_chat_template(x, tokenizer), load_from_cache_file=False)
+    else:
+         dataset = dataset.map(partial(test_mapping, args), load_from_cache_file=False)
 
     def collate_fn(batch):
         for sample in batch:
@@ -134,26 +129,24 @@ def test_re(args, model, tokenizer):
         dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
 
     out_text_list = []
-    log_interval = len(dataloader) // 5
 
     for idx, inputs in enumerate(tqdm(dataloader)):
         inputs = {key: value.to(model.device) for key, value in inputs.items()}
-        print("inputs", inputs)
+        # print("inputs", inputs)
         res = model.generate(
                 **inputs,
                 eos_token_id=tokenizer.eos_token_id,
                 max_new_tokens=128,
                 )
-        print("res", res)
+        # print("res", res)
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
-        print("res_sentences", res_sentences)
-        if (idx + 1) % log_interval == 0:
-            tqdm.write(f'{idx}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1].strip() for o in res_sentences]
-        print("out_text", out_text)
+        # print("res_sentences", res_sentences)
+        tqdm.write(f'{idx}: {res_sentences[0]}')
+        out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
+        # print("out_text", out_text)
         out_text_list += out_text
-        exit()
+        # exit()
         torch.cuda.empty_cache()
 
     dataset = dataset.add_column("out_text", out_text_list)

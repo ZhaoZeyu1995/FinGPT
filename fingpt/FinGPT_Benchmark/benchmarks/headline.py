@@ -6,13 +6,12 @@ import torch
 from torch.utils.data import DataLoader
 from functools import partial
 from pathlib import Path
-from fingpt.FinGPT_Benchmark.utils import *
+from fingpt.FinGPT_Benchmark.utils import test_mapping, apply_chat_template
 
 import sys
 sys.path.append('../')
-    
-    
-    
+
+
 def binary2multi(dataset):
     pred, label = [], []
     tmp_pred, tmp_label = [], []
@@ -33,11 +32,16 @@ def map_output(feature):
 
 
 def test_headline(args, model, tokenizer):
-    
+
     # dataset = load_from_disk('../data/fingpt-headline')['test']
-    dataset = load_from_disk(Path(__file__).parent.parent / 'data/fingpt-headline-instruct')['test']
-    dataset = dataset.map(partial(test_mapping, args), load_from_cache_file=False)
-    
+    dataset = load_from_disk(
+        Path(__file__).parent.parent / 'data/fingpt-headline-instruct')['test']
+
+    if args.base_model in ["phi3mini", "phi3small", "phi3medium"]:
+        dataset = dataset.map(lambda x: apply_chat_template(x, tokenizer), load_from_cache_file=False)
+    else:
+         dataset = dataset.map(partial(test_mapping, args), load_from_cache_file=False)
+
     def collate_fn(batch):
         inputs = tokenizer(
             [f["prompt"] for f in batch], return_tensors='pt',
@@ -45,34 +49,34 @@ def test_headline(args, model, tokenizer):
             return_token_type_ids=False
         )
         return inputs
-    
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
-    
+
+    dataloader = DataLoader(
+        dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
+
     out_text_list = []
-    log_interval = len(dataloader) // 5
 
     for idx, inputs in enumerate(tqdm(dataloader)):
         inputs = {key: value.to(model.device) for key, value in inputs.items()}
-        res = model.generate(**inputs, max_length=args.max_length, eos_token_id=tokenizer.eos_token_id)
-        res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
+        res = model.generate(**inputs, max_length=args.max_length,
+                             eos_token_id=tokenizer.eos_token_id)
+        res_sentences = [tokenizer.decode(
+            i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{idx}: {res_sentences[0]}')
-        if (idx + 1) % log_interval == 0:
-            tqdm.write(f'{idx}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1] for o in res_sentences]
         out_text_list += out_text
         torch.cuda.empty_cache()
-    
+
     dataset = dataset.add_column("out_text", out_text_list)
-    dataset = dataset.map(map_output, load_from_cache_file=False)    
+    dataset = dataset.map(map_output, load_from_cache_file=False)
     dataset = dataset.to_pandas()
-    
+
     print(dataset)
     dataset.to_csv('tmp.csv')
-        
+
     # binary
     acc = accuracy_score(dataset["label"], dataset["pred"])
     f1 = f1_score(dataset["label"], dataset["pred"], average="binary")
-    
+
     # multi-class
     pred, label = binary2multi(dataset)
 

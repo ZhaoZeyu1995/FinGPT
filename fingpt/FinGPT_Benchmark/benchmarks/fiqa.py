@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 from functools import partial
 from pathlib import Path
+from math import ceil
 
 
 with open(Path(__file__).parent / 'sentiment_templates.txt') as f:
@@ -60,8 +61,9 @@ def test_fiqa(args, model, tokenizer, prompt_fun=add_instructions):
     batch_size = args.batch_size
     # dataset = load_dataset('pauri32/fiqa-2018')
     dataset = load_from_disk(Path(__file__).parent.parent / 'data/fiqa-2018/')
-    dataset = datasets.concatenate_datasets([dataset["train"], dataset["validation"] ,dataset["test"] ])
-    dataset = dataset.train_test_split(0.226, seed = 42)['test']
+    # dataset = datasets.concatenate_datasets([dataset["train"], dataset["validation"] ,dataset["test"] ])
+    # dataset = dataset.train_test_split(0.226, seed = 42)['test']
+    dataset = dataset["test"]
     dataset = dataset.to_pandas()
     dataset["output"] = dataset.sentiment_score.apply(make_label)
     if prompt_fun is None:
@@ -77,22 +79,59 @@ def test_fiqa(args, model, tokenizer, prompt_fun=add_instructions):
     print(f"\n\nPrompt example:\n{dataset['context'][0]}\n\n")
 
     context = dataset['context'].tolist()
-    total_steps = dataset.shape[0]//batch_size + 1
+    total_steps = ceil(dataset.shape[0]/batch_size)
     print(f"Total len: {len(context)}. Batchsize: {batch_size}. Total steps: {total_steps}")
 
+    def context_to_prompt(x: str):
+        """
+        Transform a string like
+
+        Instruction: What is the sentiment of this tweet? Please choose an answer from {negative/neutral/positive}.
+        Input: Still short $LNG from $11.70 area...next stop could be down through $9.00. Someone slammed it hard with 230,000 shs this am! More to follow
+        Answer:
+
+        to the corresponding prompt string by applying the tokenizer's chat_template
+        """
+        if tokenizer.chat_template is None or "system" not in tokenizer.chat_template:
+            messages = [
+                {
+                    "role": "user",
+                    "content": x,
+                },
+            ]
+        else:
+            instruction, inputs, answer = x.split("\n")
+            messages = [
+                {
+                    "role": "system",
+                    "content": instruction,
+                },
+                {
+                    "role": "user",
+                    "content": inputs + '\n' + answer,
+                },
+            ]
+        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
     out_text_list = []
-    
+
     for i in tqdm(range(total_steps)):
-        tmp_context = context[i* batch_size:(i+1)* batch_size]
-        tokens = tokenizer(tmp_context, return_tensors='pt', padding=True, max_length=512, return_token_type_ids=False)
+        tmp_context = context[i * batch_size:min((i+1) * batch_size, len(context))]
+        if args.base_model in ["phi3mini", "phi3small", "phi3medium"]:
+            tmp_prompt = [context_to_prompt(x) for x in tmp_context]
+            tokens = tokenizer(tmp_prompt, return_tensors='pt', padding=True, max_length=512, return_token_type_ids=False)
+        else:
+            tokens = tokenizer(tmp_context, return_tensors='pt', padding=True, max_length=512, return_token_type_ids=False)
+
         # tokens.pop('token_type_ids')
         for k in tokens.keys():
             tokens[k] = tokens[k].cuda()
-        
+
         res = model.generate(**tokens, max_length=512, eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1] for o in res_sentences]
+        out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
+        # print("out_text", out_text)
         out_text_list += out_text
         torch.cuda.empty_cache()
 
@@ -121,12 +160,11 @@ def test_fiqa_mlt(args, model, tokenizer):
     dataset["text_type"] = dataset.apply(lambda x: 'tweet' if x.format == "post" else 'news', axis=1)
     dataset = dataset[['sentence', 'output', "text_type"]]
     dataset.columns = ["input", "output", "text_type"]
-    
     dataset["output"] = dataset["output"].apply(change_target)
     dataset = dataset[dataset["output"] != 'neutral']
 
     out_texts_list = [[] for _ in range(len(templates))]
-    
+
     def collate_fn(batch):
         inputs = tokenizer(
             [f["context"] for f in batch], return_tensors='pt',
@@ -134,16 +172,14 @@ def test_fiqa_mlt(args, model, tokenizer):
             return_token_type_ids=False
         )
         return inputs
-    
+
     for i, template in enumerate(templates):
         dataset = dataset[['input', 'output', "text_type"]]
         dataset["instruction"] = dataset['text_type'].apply(lambda x: template.format(type=x) + "\nOptions: positive, negative")
         # dataset["instruction"] = dataset['text_type'].apply(lambda x: template.format(type=x) + "\nOptions: negative, positive")
         dataset[["context", "target"]] = dataset.apply(format_example, axis=1, result_type="expand")
-        
-        dataloader = DataLoader(Dataset.from_pandas(dataset), batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
 
-        log_interval = len(dataloader) // 5
+        dataloader = DataLoader(Dataset.from_pandas(dataset), batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
 
         for idx, inputs in enumerate(tqdm(dataloader)):
             inputs = {key: value.to(model.device) for key, value in inputs.items()}
@@ -171,6 +207,6 @@ def test_fiqa_mlt(args, model, tokenizer):
         f1_micro = f1_score(dataset["target"], dataset[k], average="micro")
         f1_weighted = f1_score(dataset["target"], dataset[k], average="weighted")
 
-        print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted (BloombergGPT): {f1_weighted}. ")
+        print(f"Acc: {acc}. F1 macro: {f1_macro}. F1 micro: {f1_micro}. F1 weighted: {f1_weighted}. ")
 
     return dataset
