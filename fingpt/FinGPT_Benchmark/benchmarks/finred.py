@@ -119,6 +119,7 @@ def test_re(args, model, tokenizer):
                               load_from_cache_file=False)
 
     def collate_fn(batch):
+        # print("prompt", [f["prompt"] for f in batch])
         inputs = tokenizer(
             [f["prompt"] for f in batch], return_tensors='pt',
             padding=True, max_length=args.max_length,
@@ -142,6 +143,7 @@ def test_re(args, model, tokenizer):
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
         # print("res_sentences", res_sentences)
+        # exit()
         tqdm.write(f'{idx}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1].strip().lower()
                     for o in res_sentences]

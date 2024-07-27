@@ -129,7 +129,8 @@ def test_fpb(args, model, tokenizer, prompt_fun=None):
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1] for o in res_sentences]
+        out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        # out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
         out_text_list += out_text
         torch.cuda.empty_cache()
 
