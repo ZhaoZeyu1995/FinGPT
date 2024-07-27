@@ -127,7 +127,11 @@ def test_re(args, model, tokenizer):
         )
         return inputs
     dataloader = DataLoader(
-        dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False)
+        dataset,
+        batch_size=args.batch_size,
+        collate_fn=collate_fn,
+        shuffle=False,
+    )
 
     out_text_list = []
 

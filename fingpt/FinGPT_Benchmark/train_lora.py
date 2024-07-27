@@ -34,6 +34,7 @@ from fingpt.FinGPT_Benchmark.utils import (
 )
 
 
+
 # Replace with your own api_key and project name
 os.environ['WANDB_API_KEY'] = 'ecf1e5e4f47441d46822d38a3249d62e8fc94db4'
 os.environ['WANDB_PROJECT'] = 'fingpt-benchmark'
@@ -103,8 +104,7 @@ def main(args):
 
     # Set up training arguments
     training_args = TrainingArguments(
-        # The output directory
-        output_dir=f'finetuned_models/{args.run_name}_{formatted_time}',
+        output_dir=f'finetuned_models/{args.run_name}_{formatted_time}', # save model to this directory
         logging_steps=args.log_interval,
         num_train_epochs=args.num_epochs,
         per_device_train_batch_size=args.batch_size,
@@ -203,6 +203,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_best_model", default='False', type=bool)
     parser.add_argument("--eval_steps", default=0.1, type=float)
     parser.add_argument("--from_remote", default=True, type=bool)
+
     args = parser.parse_args()
 
     # Login to Weights and Biases

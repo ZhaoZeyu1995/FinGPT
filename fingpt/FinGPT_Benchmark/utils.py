@@ -18,6 +18,9 @@ lora_module_dict = {
     'qwen': ["c_attn"],
     'mpt': ['Wqkv'],
     'baichuan': ['q_proj', 'k_proj', 'v_proj'],
+    'phi3mini': ["qkv_proj"],
+    'phi3small': ["query_key_value"],
+    'phi3medium': ["qkv_proj"],
 }
 
 
