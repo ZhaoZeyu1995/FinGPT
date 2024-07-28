@@ -103,7 +103,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--base_model", required=True, type=str, choices=[
-                        'chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom', 'phi3mini', 'phi3small', 'phi3medium'])
+                        'chatglm2', 'llama2', 'llama2-13b', 'llama2-13b-nr', 'baichuan', 'falcon', 'internlm', 'qwen', 'mpt', 'bloom', 'phi3mini', 'phi3small', 'phi3medium', 'bert'])
     parser.add_argument("--peft_model", required=False, type=str, default=None)
     parser.add_argument("--max_length", default=512, type=int)
     parser.add_argument("--batch_size", default=4, type=int,

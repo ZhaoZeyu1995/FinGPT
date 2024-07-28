@@ -143,3 +143,6 @@ fingpt/FinGPT_Benchmark/data/*/**
 
 # temp files
 tmp.*
+finetuned_models
+runs
+wandb

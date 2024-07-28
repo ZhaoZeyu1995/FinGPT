@@ -42,7 +42,7 @@ def test_nwgi(args, model, tokenizer, prompt_fun=None):
     batch_size = args.batch_size
     # dataset = load_dataset('oliverwang15/news_with_gpt_instructions')
     dataset = load_from_disk(
-        Path(__file__).parent.parent / 'data/news_with_gpt_instructions/')["test"]
+        str(Path(__file__).parent.parent / 'data/news_with_gpt_instructions/'))["test"]
     dataset = dataset.to_pandas()
     dataset['output'] = dataset['label'].apply(lambda x: dic[x])
 
@@ -114,6 +114,7 @@ def test_nwgi(args, model, tokenizer, prompt_fun=None):
             i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        # out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
         out_text_list += out_text
         torch.cuda.empty_cache()
 

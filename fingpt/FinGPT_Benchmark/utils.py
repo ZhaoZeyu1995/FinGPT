@@ -21,6 +21,7 @@ lora_module_dict = {
     'phi3mini': ["qkv_proj"],
     'phi3small': ["query_key_value"],
     'phi3medium': ["qkv_proj"],
+    'bert': ['query', 'key', 'value'],
 }
 
 
@@ -184,8 +185,12 @@ def tokenize(args, tokenizer, feature):
 
     # Add an end-of-sequence (EOS) token if it's not already present
     # and if the sequence length is within the limit.
-    if input_ids[-1] != tokenizer.eos_token_id and not exceed_max_length:
-        input_ids.append(tokenizer.eos_token_id)
+    if tokenizer.eos_token_id:
+        if input_ids[-1] != tokenizer.eos_token_id and not exceed_max_length:
+            input_ids.append(tokenizer.eos_token_id)
+    elif tokenizer.sep_token_id:
+        if input_ids[-1] != tokenizer.sep_token_id and not exceed_max_length:
+            input_ids.append(tokenizer.sep_token_id)
 
     # Create label IDs for training.
     # The labels should start from where the prompt ends, and be padded for the prompt portion.
@@ -197,6 +202,7 @@ def tokenize(args, tokenizer, feature):
         "labels": label_ids,
         "exceed_max_length": exceed_max_length
     }
+
 
 def tokenize_phi3(args, tokenizer, feature):
     """
@@ -281,7 +287,6 @@ def tokenize_phi3(args, tokenizer, feature):
     }
 
 
-
 def parse_model_name(name, from_remote=False):
     """
     Parse the model name and return the appropriate path based on whether
@@ -309,6 +314,7 @@ def parse_model_name(name, from_remote=False):
         'phi3mini': ('microsoft/Phi-3-mini-4k-instruct', 'base_models/Phi-3-mini-4k-instruct'),
         'phi3small': ('microsoft/Phi-3-small-8k-instruct', 'base_models/Phi-3-small-8k-instruct'),
         'phi3medium': ('microsoft/Phi-3-medium-4k-instruct', 'base_models/Phi-3-medium-4k-instruct'),
+        'bert': ('google-bert/bert-base-cased', 'base_models/bert-base-cased'),
     }
 
     if name in model_paths:
@@ -361,12 +367,21 @@ def load_dataset(names, from_remote=False):
         except Exception as e:
             raise RuntimeError(f"Failed to load the dataset: {str(e)}")
 
+        if name == "fiqa":
+            tmp_dataset = process_fiqa(tmp_dataset)
+        if name == "fpb":
+            tmp_dataset = process_fpb(tmp_dataset)
+        if name == "nwgi":
+            tmp_dataset = process_nwgi(tmp_dataset)
+        if name == "tfns":
+            tmp_dataset = process_tfns(tmp_dataset)
+
         # Check for 'test' split and create it from 'train' if necessary
-        if 'test' not in tmp_dataset:
+        if 'test' not in tmp_dataset and 'validation' not in tmp_dataset:
             if 'train' in tmp_dataset:
                 tmp_dataset = tmp_dataset['train']
                 tmp_dataset = tmp_dataset.train_test_split(
-                    test_size=0.2, shuffle=True, seed=42)
+                    test_size=0.25, shuffle=True, seed=42)
             else:
                 raise ValueError(
                     "The dataset must contain a 'train' or 'test' split.")
@@ -375,3 +390,109 @@ def load_dataset(names, from_remote=False):
         dataset_list.extend([tmp_dataset] * replication_factor)
 
     return dataset_list
+
+
+def process_fiqa(dataset):
+
+    def make_label(x):
+        if x < - 0.1:
+            return "negative"
+        elif x >= -0.1 and x < 0.1:
+            return "neutral"
+        elif x >= 0.1:
+            return "positive"
+
+    def add_instructions(x):
+        if x == "post":
+            return "What is the sentiment of this tweet? Please choose an answer from {negative/neutral/positive}."
+        else:
+            return "What is the sentiment of this news? Please choose an answer from {negative/neutral/positive}."
+
+    def map_func(sample):
+        sample["output"] = make_label(sample["sentiment_score"])
+        sample["instruction"] = add_instructions(sample["format"])
+        return sample
+
+    dataset = dataset.map(map_func)
+    dataset = dataset.remove_columns(
+        ['sentiment_score',
+         'format',
+         'snippets',
+         'target',
+         'aspects',
+         'label']
+    )
+    dataset = dataset.rename_column("sentence", "input")
+    return dataset
+
+
+def process_fpb(dataset):
+    dic = {
+        0: "negative",
+        1: 'neutral',
+        2: 'positive',
+    }
+
+    def map_func(sample):
+        sample["output"] = dic[sample["label"]]
+        sample[
+            "instruction"] = "What is the sentiment of this news? Please choose an answer from {negative/neutral/positive}."
+        return sample
+    dataset = dataset.map(map_func)
+    dataset = dataset.rename_column("sentence", "input")
+    dataset = dataset.remove_columns(
+        ['label']
+    )
+    return dataset
+
+
+def process_nwgi(dataset):
+    dic = {
+        'strong negative': "negative",
+        'moderately negative': "negative",
+        'mildly negative': "neutral",
+        'strong positive': "positive",
+        'moderately positive': "positive",
+        'mildly positive': 'neutral',
+        'neutral': 'neutral',
+    }
+
+    def map_func(sample):
+        sample["output"] = dic[sample["label"]]
+        sample[
+            "instruction"] = "What is the sentiment of this news? Please choose an answer from {negative/neutral/positive}."
+        return sample
+
+    dataset = dataset.map(map_func)
+    dataset = dataset.rename_column("news", "input")
+    dataset = dataset.remove_columns(
+        ['label',
+         'prompt',
+         'out',
+         'prompt_tokens',
+         'completion_tokens',
+         'total_tokens',
+         ],
+    )
+    return dataset
+
+
+def process_tfns(dataset):
+    dic = {
+        0: "negative",
+        1: 'positive',
+        2: 'neutral',
+    }
+
+    def map_func(sample):
+        sample["output"] = dic[sample["label"]]
+        sample[
+            "instruction"] = 'What is the sentiment of this tweet? Please choose an answer from {negative/neutral/positive}.'
+        return sample
+
+    dataset = dataset.map(map_func)
+    dataset = dataset.rename_column("text", "input")
+    dataset = dataset.remove_columns(
+        ['label',],
+    )
+    return dataset

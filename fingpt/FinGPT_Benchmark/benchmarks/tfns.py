@@ -38,7 +38,7 @@ def test_tfns(args, model, tokenizer, prompt_fun=None):
     batch_size = args.batch_size
     # dataset = load_dataset('zeroshot/twitter-financial-news-sentiment')
     dataset = load_from_disk(
-        Path(__file__).parent.parent / 'data/twitter-financial-news-sentiment')
+        str(Path(__file__).parent.parent / 'data/twitter-financial-news-sentiment'))
     dataset = dataset['validation']
     dataset = dataset.to_pandas()
     dataset['label'] = dataset['label'].apply(lambda x: dic[x])
@@ -115,6 +115,7 @@ def test_tfns(args, model, tokenizer, prompt_fun=None):
             i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
         out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        # out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
         out_text_list += out_text
         torch.cuda.empty_cache()
 

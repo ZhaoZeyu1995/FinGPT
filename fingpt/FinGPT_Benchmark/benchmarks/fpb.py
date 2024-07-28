@@ -56,7 +56,7 @@ def test_fpb(args, model, tokenizer, prompt_fun=None):
     batch_size = args.batch_size
     # instructions = load_dataset("financial_phrasebank", "sentences_50agree")
     instructions = load_from_disk(
-        Path(__file__).parent.parent / "data/financial_phrasebank-sentences_50agree/")
+        str(Path(__file__).parent.parent / "data/financial_phrasebank-sentences_50agree/"))
     instructions = instructions["train"]
     instructions = instructions.train_test_split(seed=42)['test']
     instructions = instructions.to_pandas()
@@ -129,8 +129,8 @@ def test_fpb(args, model, tokenizer, prompt_fun=None):
         res_sentences = [tokenizer.decode(
             i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
-        # out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
+        # out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
         out_text_list += out_text
         torch.cuda.empty_cache()
 

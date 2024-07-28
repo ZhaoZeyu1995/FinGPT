@@ -60,7 +60,7 @@ def vote_output(x):
 def test_fiqa(args, model, tokenizer, prompt_fun=add_instructions):
     batch_size = args.batch_size
     # dataset = load_dataset('pauri32/fiqa-2018')
-    dataset = load_from_disk(Path(__file__).parent.parent / 'data/fiqa-2018/')
+    dataset = load_from_disk(str(Path(__file__).parent.parent / 'data/fiqa-2018/'))
     # dataset = datasets.concatenate_datasets([dataset["train"], dataset["validation"] ,dataset["test"] ])
     # dataset = dataset.train_test_split(0.226, seed = 42)['test']
     dataset = dataset["test"]
@@ -130,7 +130,8 @@ def test_fiqa(args, model, tokenizer, prompt_fun=add_instructions):
         res = model.generate(**tokens, max_length=512, eos_token_id=tokenizer.eos_token_id)
         res_sentences = [tokenizer.decode(i, skip_special_tokens=True) for i in res]
         tqdm.write(f'{i}: {res_sentences[0]}')
-        out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        # out_text = [o.split("Answer: ")[1].strip().lower().split(' ')[0] for o in res_sentences]
+        out_text = [o.split("Answer: ")[1].strip().lower() for o in res_sentences]
         # print("out_text", out_text)
         out_text_list += out_text
         torch.cuda.empty_cache()
